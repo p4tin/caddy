@@ -172,22 +172,3 @@ func getCertsForNewCaddyfile(newCaddyfile Input) error {
 
 	return nil
 }
-
-// restartInProc restarts Caddy forcefully in process using newCaddyfile.
-func restartInProc(newCaddyfile Input) error {
-	wg.Add(1) // barrier so Wait() doesn't unblock
-
-	err := Stop()
-	if err != nil {
-		return err
-	}
-
-	err = Start(newCaddyfile)
-	if err != nil {
-		return err
-	}
-
-	wg.Done() // take down our barrier
-
-	return nil
-}

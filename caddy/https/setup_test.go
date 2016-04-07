@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/mholt/caddy/caddy/setup"
+	"github.com/xenolf/lego/acme"
 )
 
 func TestMain(m *testing.M) {
@@ -52,6 +53,11 @@ func TestSetupParseBasic(t *testing.T) {
 	}
 	if c.TLS.ProtocolMaxVersion != tls.VersionTLS12 {
 		t.Errorf("Expected 'tls1.2 (0x0303)' as ProtocolMaxVersion, got %v", c.TLS.ProtocolMaxVersion)
+	}
+
+	// KeyType default
+	if KeyType != acme.RSA2048 {
+		t.Errorf("Expected '2048' as KeyType, got %#v", KeyType)
 	}
 
 	// Cipher checks
@@ -170,6 +176,16 @@ func TestSetupParseWithWrongOptionalParams(t *testing.T) {
 	if err == nil {
 		t.Errorf("Expected errors, but no error returned")
 	}
+
+	// Test key_type wrong params
+	params = `tls {
+			key_type ab123
+		}`
+	c = setup.NewTestController(params)
+	_, err = Setup(c)
+	if err == nil {
+		t.Errorf("Expected errors, but no error returned")
+	}
 }
 
 func TestSetupParseWithClientAuth(t *testing.T) {
@@ -200,6 +216,22 @@ func TestSetupParseWithClientAuth(t *testing.T) {
 	_, err = Setup(c)
 	if err == nil {
 		t.Errorf("Expected an error, but no error returned")
+	}
+}
+
+func TestSetupParseWithKeyType(t *testing.T) {
+	params := `tls {
+            key_type p384
+        }`
+	c := setup.NewTestController(params)
+
+	_, err := Setup(c)
+	if err != nil {
+		t.Errorf("Expected no errors, got: %v", err)
+	}
+
+	if KeyType != acme.EC384 {
+		t.Errorf("Expected 'P384' as KeyType, got %#v", KeyType)
 	}
 }
 
