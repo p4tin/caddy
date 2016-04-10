@@ -77,3 +77,13 @@ func (r *ResponseRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	}
 	return nil, nil, errors.New("not a Hijacker")
 }
+
+// Flush implements http.Flusher. It simply wraps the underlying
+// ResponseWriter's Flush method if there is one, or does nothing.
+func (r *ResponseRecorder) Flush() {
+	if f, ok := r.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	} else {
+		panic("not a Flusher") // should be recovered at the beginning of middleware stack
+	}
+}
