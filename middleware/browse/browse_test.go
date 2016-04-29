@@ -104,6 +104,44 @@ func TestSort(t *testing.T) {
 	}
 }
 
+func TestBrowseHTTPMethods(t *testing.T) {
+	tmpl, err := template.ParseFiles("testdata/photos.tpl")
+	if err != nil {
+		t.Fatalf("An error occured while parsing the template: %v", err)
+	}
+
+	b := Browse{
+		Next: middleware.HandlerFunc(func(w http.ResponseWriter, r *http.Request) (int, error) {
+			return http.StatusTeapot, nil // not t.Fatalf, or we will not see what other methods yield
+		}),
+		Configs: []Config{
+			{
+				PathScope: "/photos",
+				Root:      http.Dir("./testdata"),
+				Template:  tmpl,
+			},
+		},
+	}
+
+	rec := httptest.NewRecorder()
+	for method, expected := range map[string]int{
+		http.MethodGet:     http.StatusOK,
+		http.MethodHead:    http.StatusOK,
+		http.MethodOptions: http.StatusNotImplemented,
+		"PROPFIND":         http.StatusNotImplemented,
+	} {
+		req, err := http.NewRequest(method, "/photos/", nil)
+		if err != nil {
+			t.Fatalf("Test: Could not create HTTP request: %v", err)
+		}
+
+		code, _ := b.ServeHTTP(rec, req)
+		if code != expected {
+			t.Errorf("Wrong status with HTTP Method %s: expected %d, got %d", method, expected, code)
+		}
+	}
+}
+
 func TestBrowseTemplate(t *testing.T) {
 	tmpl, err := template.ParseFiles("testdata/photos.tpl")
 	if err != nil {
@@ -115,10 +153,10 @@ func TestBrowseTemplate(t *testing.T) {
 			t.Fatalf("Next shouldn't be called")
 			return 0, nil
 		}),
-		Root: "./testdata",
 		Configs: []Config{
 			{
 				PathScope: "/photos",
+				Root:      http.Dir("./testdata"),
 				Template:  tmpl,
 			},
 		},
@@ -170,16 +208,16 @@ func TestBrowseJson(t *testing.T) {
 			t.Fatalf("Next shouldn't be called")
 			return 0, nil
 		}),
-		Root: "./testdata",
 		Configs: []Config{
 			{
 				PathScope: "/photos/",
+				Root:      http.Dir("./testdata"),
 			},
 		},
 	}
 
 	//Getting the listing from the ./testdata/photos, the listing returned will be used to validate test results
-	testDataPath := b.Root + "/photos/"
+	testDataPath := filepath.Join("./testdata", "photos")
 	file, err := os.Open(testDataPath)
 	if err != nil {
 		if os.IsPermission(err) {
@@ -200,7 +238,7 @@ func TestBrowseJson(t *testing.T) {
 		// Tests fail in CI environment because all file mod times are the same for
 		// some reason, making the sorting unpredictable. To hack around this,
 		// we ensure here that each file has a different mod time.
-		chTime := f.ModTime().Add(-(time.Duration(i) * time.Second))
+		chTime := f.ModTime().UTC().Add(-(time.Duration(i) * time.Second))
 		if err := os.Chtimes(filepath.Join(testDataPath, name), chTime, chTime); err != nil {
 			t.Fatal(err)
 		}
@@ -277,7 +315,7 @@ func TestBrowseJson(t *testing.T) {
 		code, err := b.ServeHTTP(rec, req)
 
 		if code != http.StatusOK {
-			t.Fatalf("Wrong status, expected %d, got %d", http.StatusOK, code)
+			t.Fatalf("In test %d: Wrong status, expected %d, got %d", i, http.StatusOK, code)
 		}
 		if rec.HeaderMap.Get("Content-Type") != "application/json; charset=utf-8" {
 			t.Fatalf("Expected Content type to be application/json; charset=utf-8, but got %s ", rec.HeaderMap.Get("Content-Type"))
